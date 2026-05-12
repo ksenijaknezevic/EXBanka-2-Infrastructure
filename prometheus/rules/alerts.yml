@@ -1,0 +1,49 @@
+groups:
+  - name: exbanka-service-health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is DOWN"
+          description: "Prometheus target {{ $labels.instance }} (job={{ $labels.job }}) has been unreachable for over 1 minute."
+
+      - alert: HighGRPCErrorRate
+        expr: |
+          sum by (job) (rate(grpc_server_handled_total{grpc_code!="OK"}[5m]))
+            /
+          sum by (job) (rate(grpc_server_handled_total[5m]))
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High gRPC error rate on {{ $labels.job }}"
+          description: "More than 5% of gRPC calls on {{ $labels.job }} are failing over the last 5 minutes."
+
+      - alert: HighGRPCLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le, job) (rate(grpc_server_handling_seconds_bucket[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p99 gRPC latency on {{ $labels.job }}"
+          description: "p99 latency on {{ $labels.job }} is above 1s for 5 minutes."
+
+      - alert: HighHTTPErrorRate
+        expr: |
+          sum by (job) (rate(http_requests_total{code=~"5.."}[5m]))
+            /
+          sum by (job) (rate(http_requests_total[5m]))
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx rate on {{ $labels.job }}"
+          description: "More than 5% of HTTP responses on {{ $labels.job }} are 5xx over 5 minutes."
