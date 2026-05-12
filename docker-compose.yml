@@ -239,6 +239,66 @@ services:
     networks:
       - bank-net
 
+  # ── Monitoring / Alerting (MLA) ───────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: bank_prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - user-service
+      - bank-service
+      - notification-service
+    networks:
+      - bank-net
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    container_name: bank_alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager/discord_webhook_url:/etc/alertmanager/discord_webhook_url:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    networks:
+      - bank-net
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: bank_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - bank-net
+
 # ── Shared Network & Volumes ──────────────────────────────
 
 networks:
@@ -247,3 +307,6 @@ networks:
 
 volumes:
   pgdata:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
